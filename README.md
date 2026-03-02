@@ -1,4 +1,42 @@
-# RetryIX Backend Preview Package
+# pytorch-retryix-backend 3.0.2 — Release Notes
+
+## What's New
+
+### Complete Rust Migration (retryix_ffi.dll)
+All GPU compute functions have been migrated from C++ stubs to native Rust
+(`retryix_ffi.dll`, 1.4 MB).  The old `retryix_v2.dll` dependency has been
+removed entirely.
+
+**Exported GPU compute symbols (retryix_ffi.dll):**
+- `retryix_vulkan_init`
+- `retryix_vulkan_gemm_f32`
+- `retryix_vulkan_gemm_impl`
+- `retryix_vulkan_add`
+- `retryix_vulkan_relu_f32`
+- `retryix_vulkan_saxpy_f32`
+- `retryix_vulkan_get_vram_bytes`
+
+### GPU Dispatch with Topology Gate
+Matrix multiplication is dispatched to the Vulkan GPU GEMM pipeline when
+`M × N × K ≥ 1,000,000` (AMD RDNA tuning: ~80 µs dispatch overhead).
+Smaller matrices correctly fall back to CPU to avoid GPU overhead penalty.
+
+| Matrix size | Path |
+|---|---|
+| 3 × 4 @ 4 × 3 (36 FLOPs) | CPU fallback |
+| 128 × 128 @ 128 × 128 (2 M FLOPs) | **GPU dispatch** ✓ |
+| 256 × 256 @ 256 × 256 (16 M FLOPs) | **GPU dispatch** ✓ |
+
+### CPU Fallback Prohibition API
+New `set_cpu_fallback_prohibited(True)` API prevents any silent CPU detour
+during persistent GEMM kernel sessions.  Attempting a sub-threshold matmul
+while prohibited raises `RuntimeError` immediately instead of silently
+degrading to CPU.
+
+```python
+rx.set_cpu_fallback_prohibited(True)   # lock to GPU-only
+torch.matmul(small_a, small_b)         # raises RuntimeError: CPU fallback prohibited
+rx.set_cpu_fallback_prohibited(False)  # re-enable# RetryIX Backend Preview Package
 
 This document describes the complete environment required to reproduce, build and validate the preview release package.  
 By following the steps below, anyone with the appropriate hardware and software can recreate the setup from this directory and produce a preview-ready bundle.
